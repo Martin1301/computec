@@ -1,0 +1,91 @@
+import { Suspense } from "react"
+import Link from "next/link"
+import { getAlumnos } from "@/app/actions/alumnos"
+
+export const instant = false
+
+async function TablaAlumnos() {
+  const alumnos = await getAlumnos()
+
+  return (
+    <div className="w-full min-w-0 overflow-x-auto">
+
+    <table className="w-full min-w-[1000px] table-auto divide-y divide-slate-200">
+      <thead className="bg-slate-50 text-slate-700">
+        <tr>
+          <th className="w-[130px] whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider">Código</th>
+          <th className="min-w-[240px] whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider">Apellidos y Nombres</th>
+          <th className="min-w-[260px] whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider">Email</th>
+          <th className="w-[130px] whitespace-nowrap px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider">Estado</th>
+          <th className="w-[240px] whitespace-nowrap px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider">Acciones</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100 bg-white">
+        {alumnos.map((alumno) => (
+          <tr key={alumno.CODALUMNO} className="hover:bg-slate-50/80 transition-colors">
+            <td className="px-2 py-2 whitespace-normal break-words text-sm font-bold text-slate-700">
+              {alumno.CODALUMNO}
+            </td>
+            <td className="px-2 py-2 whitespace-normal break-words text-sm text-gray-800 font-medium">
+              {alumno.APELLIDO_PAT} {alumno.APELLIDO_MAT}, {alumno.NOMBRES}
+            </td>
+            <td className="px-2 py-2 whitespace-normal break-words text-sm text-gray-600">
+              {alumno.EMAIL || <span className="text-gray-400 italic">No registrado</span>}
+            </td>
+            <td className="px-2 py-2 whitespace-normal break-words text-center">
+              <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                alumno.ESTADO === "A" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+              }`}>
+                {alumno.ESTADO === "A" ? "Activo" : "Inactivo"}
+              </span>
+            </td>
+            <td className="whitespace-nowrap px-3 py-3 text-center text-sm font-medium">
+              <Link
+                href={`/alumnos/editar/${alumno.CODALUMNO}`}
+                className="inline-flex items-center justify-center whitespace-nowrap text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                ✏️ Editar
+              </Link>
+              
+              <Link
+                href={`/notas/${alumno.CODALUMNO}`}
+                className="inline-flex items-center justify-center whitespace-nowrap text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                📋 Notas
+              </Link>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  )
+}
+
+export default function AlumnosPage() {
+  return (
+    <div className="space-y-6">
+      {/* Encabezado con el Botón Acoplado */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-4 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Módulo de Alumnos</h1>
+          <p className="text-sm text-slate-500">Gestión de matrículas y datos personales</p>
+        </div>
+        
+        {/* BOTÓN ACOPLADO EXPOSITIVAMENTE */}
+        <Link
+          href="/alumnos/nuevo"
+          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-md transition-colors text-center"
+        >
+          ➕ Registrar Alumno
+        </Link>
+      </div>
+      
+      <div className="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm">
+        <Suspense fallback={<div className="p-12 text-center text-slate-500 font-medium animate-pulse">Consultando SQL Server...</div>}>
+          <TablaAlumnos />
+        </Suspense>
+      </div>
+    </div>
+  )
+}

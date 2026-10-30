@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model ACCESO_BOTONES {
+  ID_BOTON   String  @db.VarChar(20)
+  NOMBRE     String? @db.VarChar(60)
+  ICONO      String? @db.VarChar(60)
+  ESTADO     Int?
+  ID_SUBMENU String  @db.VarChar(20)
+  ID_MENU    String  @db.VarChar(20)
+  ID_AM      String  @db.VarChar(20)
+  DNI        String  @db.Char(8)
+  ID_HTML    String? @db.VarChar(50)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model ACCESO_MENU {
+  ID_MENU String  @db.VarChar(20)
+  NOMBRE  String? @db.VarChar(60)
+  ICONO   String? @db.VarChar(60)
+  URL     String? @db.VarChar(150)
+  ORDEN   Int?
+  ESTADO  Int?
+  ID_AM   String  @db.VarChar(20)
+  DNI     String  @db.Char(8)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model ACCESO_MODULO {
+  ID_AM     String  @db.VarChar(20)
+  NOMBRE    String? @db.VarChar(60)
+  URL       String? @db.VarChar(150)
+  IMAGEN    String? @db.VarChar(60)
+  ESTADO    Int?
+  DNI       String  @db.Char(8)
+  PLANTILLA String? @db.VarChar(100)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model ACCESO_SUBMENU {
+  ID_SUBMENU String  @db.VarChar(20)
+  NOMBRE     String? @db.VarChar(60)
+  ICONO      String? @db.VarChar(60)
+  URL        String? @db.VarChar(150)
+  ORDEN      Int?
+  ESTADO     Int?
+  ID_MENU    String  @db.VarChar(20)
+  ID_AM      String  @db.VarChar(20)
+  DNI        String  @db.Char(8)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model CURSOS_NIVELES {
+  IDCURSO        String @db.VarChar(4)
+  COD_ASIGNATURA String @db.VarChar(3)
+  COD_MODULO     String @db.VarChar(2)
+  COD_CARRERA    String @db.VarChar(2)
+  ORDEN          Int
+  ESTADO         String @db.VarChar(1)
+
+  @@ignore
+}
+
+model DOCENTE_CURSO {
+  COD_DOCENTE String    @db.VarChar(8)
+  IDCURSO     String    @db.VarChar(4)
+  COD_HORARIO String    @db.VarChar(3)
+  DESDE       DateTime? @db.Date
+  HASTA       DateTime? @db.Date
+  ESTADO      String    @db.VarChar(1)
+  IDOPERA     String    @id @db.VarChar(8)
+}
+
+model MARCACION {
+  IDMARCA       String   @id @db.VarChar(8)
+  FECHAREGISTRO DateTime @db.DateTime
+  FECHAMARCA    DateTime @db.Date
+  HORAMARCA     String?  @db.VarChar(8)
+  CODALUMNO     String   @db.VarChar(8)
+  CODASIGNATURA String?  @db.VarChar(3)
+  CODDOCENTE    String?  @db.VarChar(8)
+  IDOPERA       String?  @db.VarChar(8)
+}
+
+model MATRICULA_C {
+  COD_MATRICULA String @id @db.VarChar(20) // Ajustado como ID único para el cliente
+  CODALUMNO     String @db.VarChar(8)
+  ESTADO        String @db.VarChar(1)
+}
+
+model MATRICULA_D {
+  ID_CURSO    String   @db.VarChar(10)
+  COD_DOCENTE String   @db.VarChar(10)
+  F_DESDE     DateTime @db.DateTime
+  F_HASTA     DateTime @db.DateTime
+  COD_ESTADO  String   @db.VarChar(1)
+
+  @@id([ID_CURSO, COD_DOCENTE])
+}
+
+
+model MENU {
+  cod_menu Int    @id
+  des_menu String @db.VarChar(100)
+  val_menu String? @db.VarChar(12)
+}
+
+model MENU_SUB {
+  cod_submenu Int    @id
+  cod_menu    Int
+  des_submenu String @db.VarChar(100)
+  val_submenu String? @db.VarChar(15)
+  val_barra   Int?
+}
+
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model MENU_SUB_USR {
+  cod_menu    Int
+  cod_submenu Int
+  dni_usuario String @db.VarChar(8)
+
+  @@ignore
+}
+
+model NOTA_ALUMNO {
+  IDNOTA      String  @id @db.VarChar(8)
+  IDOPERA     String  @db.VarChar(8)
+  A1          Int?    @default(0)
+  A2          Int?    @default(0)
+  A3          Int?    @default(0)
+  CE1         Int?    @default(0)
+  A4          Int?    @default(0)
+  A5          Int?    @default(0)
+  A6          Int?    @default(0)
+  C2          Int?    @default(0)
+  M2          Int?    @default(0)
+  FINAL       Int?    @default(0)
+  CE2         Int?    @default(0)
+  LOGRO       Int?    @default(0)
+  OBSERVACION String? @db.VarChar(50)
+  CODALUMNO   String? @db.VarChar(8)
+  ESTADO      String  @db.VarChar(1)
+}
+
+model T_ALUMNOS {
+  CODALUMNO    String   @id @db.VarChar(8)
+  APELLIDO_PAT String   @db.VarChar(50)
+  APELLIDO_MAT String   @db.VarChar(50)
+  NOMBRES      String   @db.VarChar(50)
+  FECHA_NAC    DateTime @db.DateTime
+  SEXO         String   @db.VarChar(1)
+  DOMICILIO    String?  @db.VarChar(100)
+  COD_LOCAL    String   @db.VarChar(2)
+  TELEFONO     String?  @db.VarChar(30)
+  EMAIL        String?  @db.VarChar(50)
+  CODIGO_ASIST String   @db.VarChar(20)
+  ESTADO       String?  @db.VarChar(1)
+  NOMUNIDO     String?  @db.VarChar(150)
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model T_ANNO {
+  ANNO String @db.VarChar(4)
+
+  @@ignore
+}
+
+model T_ASIGNATURA {
+  COD_ASIGNATURA String @id @db.VarChar(3)
+  DES_ASIGNATURA String @db.VarChar(100)
+  EST_ASIGNATURA String @db.VarChar(1)
+}
+
+model T_CARRERA {
+  COD_CARRERA String @id @db.VarChar(2)
+  DES_CARRERA String @db.VarChar(30)
+  EST_CARRERA String @db.VarChar(1)
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model T_EMPRESA {
+  EMPRESA   String  @db.VarChar(2)
+  NOMBRE    String  @db.VarChar(80)
+  DIRECCION String? @db.VarChar(100)
+  TELEFONO  String? @db.VarChar(100)
+  DISTRITO  String? @db.VarChar(100)
+  RUC       String? @db.VarChar(11)
+
+  @@ignore
+}
+
+model T_HORARIO {
+  COD_HORARIO String  @id @db.VarChar(3)
+  DES_HORARIO String  @db.VarChar(80)
+  COD_TURNO   String  @db.VarChar(2)
+  DESCRIPCION String  @db.VarChar(100)
+  ESTADO      String  @db.VarChar(1)
+  SIGLA       String? @db.VarChar(7)
+}
+
+model T_LOCALIDAD {
+  COD_LOCAL String @id @db.VarChar(2)
+  DES_LOCAL String @db.VarChar(50)
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model T_MESES {
+  MES    String @db.VarChar(2)
+  NOMBRE String @db.VarChar(10)
+
+  @@ignore
+}
+
+model T_MODULO {
+  COD_MODULO String @id @db.VarChar(2)
+  DES_MODULO String @db.VarChar(100)
+  EST_MODULO String @db.VarChar(1)
+}
+
+model T_PROFESOR {
+  COD_DOCENTE String  @id @db.VarChar(10)
+  NOM_DOCENTE String  @db.VarChar(150) // Longitud común para nombres completos
+  EST_DOCENTE String? @db.VarChar(1)
+}
+
+model T_TURNO {
+  COD_TURNO String @id @db.VarChar(2)
+  DES_TURNO String @db.VarChar(15)
+  EST_TURNO String @db.VarChar(1)
+}
+
+model T_USUARIO {
+  DNIUSUARIO String   @id @db.VarChar(9) // <-- Agregamos @id aquí
+  NOMBRE     String   @db.VarChar(80)
+  CLAVE      String   @db.VarChar(10)
+  FECHA_USO  DateTime @db.DateTime
+  NALIAS     String?  @db.VarChar(12)
+  ESTADO     String?  @db.VarChar(1)
+  NIVEL      String?  @db.VarChar(15)
+}
+
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model USUARIO_WEB {
+  DNI              String    @db.Char(8)
+  NOMBRES          String?   @db.VarChar(60)
+  UNIDAD_ORGANICA  String?   @db.VarChar(20)
+  EMAIL            String?   @db.VarChar(90)
+  CARGO            String?   @db.VarChar(60)
+  FECHA_EXPIRACION DateTime? @db.DateTime
+  USU_NOMBRE       String?   @db.VarChar(50)
+  USU_PATERNO      String?   @db.VarChar(50)
+  USU_MATERNO      String?   @db.VarChar(50)
+  FECH_ULT_INGRESO DateTime? @db.DateTime
+  ESTADO           Int?
+  CLAVE            String?   @db.VarChar(30)
+  SEXO             String?   @db.Char(1)
+  SESION           Int?
+  FOTO             String?   @db.VarChar(15)
+
+  @@ignore
+}
