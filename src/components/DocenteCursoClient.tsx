@@ -38,7 +38,7 @@ const cellTextClass =
 const mensajes: Record<string, string> = {
   creado: "Asignación registrada correctamente.",
   actualizado: "Asignación actualizada correctamente.",
-  eliminado: "Solicitud de eliminación procesada.",
+  eliminado: "Asignación eliminada correctamente.",
 };
 
 const errores: Record<string, string> = {
@@ -87,6 +87,7 @@ function Selector({
   );
 }
 
+
 function SelectorEdicion({
   name,
   label,
@@ -109,13 +110,17 @@ function SelectorEdicion({
       <select
         name={name}
         required
-        defaultValue={existe ? valor : ""}
+        defaultValue={valor}
         className={inputClass}
       >
+        {!existe && valor && (
+          <option value={valor}>
+            Valor actual ({valor}) - no disponible en opciones activas
+          </option>
+        )}
+
         <option value="" disabled>
-          {existe
-            ? "Selecciona una opción"
-            : "No se identificó el valor actual"}
+          Selecciona una opción
         </option>
 
         {opciones.map((opcion) => (
@@ -124,9 +129,17 @@ function SelectorEdicion({
           </option>
         ))}
       </select>
+
+      {!existe && valor && (
+        <span className="mt-1 block text-xs font-normal text-amber-700">
+          El valor actual no está disponible en el catálogo activo.
+          Puedes conservarlo o seleccionar otro.
+        </span>
+      )}
     </label>
   );
 }
+
 
 function fechaParaInput(fecha: string) {
   if (!fecha) return "";
@@ -150,8 +163,8 @@ export default function DocenteCursoClient({
 }: Props) {
   const router = useRouter();
 
-  const [codigoEditando, setCodigoEditando] =
-    useState<string | null>(null);
+  const [asignacionEditando, setAsignacionEditando] =
+  useState<DocenteCurso | null>(null);
 
   // El servidor ya debe enviar solamente los registros de esta página.
   const asignacionesPagina = asignaciones;
@@ -180,7 +193,7 @@ export default function DocenteCursoClient({
 
     params.set("pagina", String(paginaDestino));
 
-    setCodigoEditando(null);
+    setAsignacionEditando(null);
 
     router.push(`/docente-curso?${params.toString()}`);
   }
@@ -215,8 +228,7 @@ export default function DocenteCursoClient({
           role="alert"
           className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
         >
-          {errores[error] ??
-            "Ocurrió un error al procesar la operación."}
+          {errores[error] ?? error}
         </div>
       )}
 
@@ -398,31 +410,7 @@ export default function DocenteCursoClient({
 
             <tbody className="divide-y divide-slate-100">
               {asignacionesPagina.map((asignacion) => {
-                const editando =
-                  codigoEditando === asignacion.codigo;
-
-                const formId = `asignacion-${asignacion.codigo}`;
-
-                const codigoDocente =
-                  docentes.find(
-                    (docente) =>
-                      docente.nombre === asignacion.docente
-                  )?.codigo ?? "";
-
-                const codigoHorario =
-                  horarios.find(
-                    (horario) =>
-                      asignacion.horario === horario.nombre ||
-                      asignacion.horario.startsWith(
-                        `${horario.nombre} `
-                      )
-                  )?.codigo ?? "";
-
-                const cursoExiste = cursos.some(
-                  (curso) =>
-                    curso.codigo === asignacion.idCurso
-                );
-
+                
                 return (
                   <tr
                     key={asignacion.codigo}
@@ -499,159 +487,46 @@ export default function DocenteCursoClient({
                       </span>
                     </td>
 
-                    <td className="px-2 py-3">
-                      {editando ? (
-                        <form
-                          id={formId}
-                          action={actualizarDocenteCurso}
-                          className="flex min-w-0 flex-col gap-3"
+                    
+                  <td className="px-2 py-3">
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAsignacionEditando(asignacion)}
+                        className="w-full rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      >
+                        Editar
+                      </button>
+
+                      <form
+                        action={eliminarDocenteCurso}
+                        onSubmit={(event) => {
+                          if (
+                            !window.confirm(
+                              `¿Deseas eliminar la asignación ${asignacion.codigo}?`
+                            )
+                          ) {
+                            event.preventDefault();
+                          }
+                        }}
+                      >
+                        <input
+                          type="hidden"
+                          name="codigo"
+                          value={asignacion.codigo}
+                        />
+
+                        <button
+                          type="submit"
+                          className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
                         >
-                          <input
-                            type="hidden"
-                            name="codigo"
-                            value={asignacion.codigo}
-                          />
+                          Eliminar
+                        </button>
+                      </form>
+                    </div>
+                  </td>
 
-                          <SelectorEdicion
-                            name="docente"
-                            label="Docente"
-                            opciones={docentes}
-                            valor={codigoDocente}
-                          />
 
-                          <SelectorEdicion
-                            name="curso"
-                            label="Curso"
-                            opciones={cursos}
-                            valor={asignacion.idCurso}
-                          />
-
-                          <label className={labelClass}>
-                            Horario
-                            <select
-                              name="horario"
-                              required
-                              defaultValue={codigoHorario}
-                              className={inputClass}
-                            >
-                              <option value="" disabled>
-                                Selecciona horario
-                              </option>
-
-                              {horarios.map((opcion) => (
-                                <option
-                                  key={opcion.codigo}
-                                  value={opcion.codigo}
-                                >
-                                  {opcion.nombre} ({opcion.codigo})
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className={labelClass}>
-                            Desde
-                            <input
-                              name="desde"
-                              type="date"
-                              required
-                              defaultValue={fechaParaInput(
-                                asignacion.desde
-                              )}
-                              className={inputClass}
-                            />
-                          </label>
-
-                          <label className={labelClass}>
-                            Hasta
-                            <input
-                              name="hasta"
-                              type="date"
-                              required
-                              defaultValue={fechaParaInput(
-                                asignacion.hasta
-                              )}
-                              className={inputClass}
-                            />
-                          </label>
-
-                          <label className={labelClass}>
-                            Estado
-                            <select
-                              name="estado"
-                              required
-                              defaultValue={
-                                asignacion.estado === "A" ? "A" : "I"
-                              }
-                              className={inputClass}
-                            >
-                              <option value="A">Activo</option>
-                              <option value="I">Inactivo</option>
-                            </select>
-                          </label>
-
-                          {!cursoExiste && (
-                            <p className="text-xs leading-5 text-amber-700">
-                              El curso actual no figura en el catálogo.
-                              Selecciona un curso válido antes de guardar.
-                            </p>
-                          )}
-
-                          <button
-                            type="submit"
-                            className="w-full rounded-md bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
-                          >
-                            Guardar cambios
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setCodigoEditando(null)}
-                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                          >
-                            Cancelar edición
-                          </button>
-                        </form>
-                      ) : (
-                        <div className="flex min-w-0 flex-col gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setCodigoEditando(asignacion.codigo)
-                            }
-                            className="w-full rounded-md bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
-                          >
-                            Editar
-                          </button>
-
-                          <form
-                            action={eliminarDocenteCurso}
-                            onSubmit={(event) => {
-                              if (
-                                !window.confirm(
-                                  `¿Deseas eliminar la asignación ${asignacion.codigo}?`
-                                )
-                              ) {
-                                event.preventDefault();
-                              }
-                            }}
-                          >
-                            <input
-                              type="hidden"
-                              name="codigo"
-                              value={asignacion.codigo}
-                            />
-
-                            <button
-                              type="submit"
-                              className="w-full rounded-md border border-rose-200 bg-white px-3 py-2.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
-                            >
-                              Eliminar
-                            </button>
-                          </form>
-                        </div>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
@@ -701,6 +576,174 @@ export default function DocenteCursoClient({
           </div>
         </div>
       </div>
+
+    
+      {/* Modal de edición */}
+      {asignacionEditando && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setAsignacionEditando(null);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-modal-edicion"
+            className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+          >
+            {/* Encabezado */}
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                  Gestión académica
+                </p>
+
+                <h2
+                  id="titulo-modal-edicion"
+                  className="mt-1 text-lg font-bold text-slate-900 sm:text-xl"
+                >
+                  Editar asignación
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Código: {asignacionEditando.codigo}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAsignacionEditando(null)}
+                aria-label="Cerrar modal"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18 18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Formulario */}
+            <form
+              key={asignacionEditando.codigo}
+              action={actualizarDocenteCurso}
+              className="max-h-[calc(100vh-180px)] overflow-y-auto"
+            >
+              <div className="space-y-5 p-5 sm:p-6">
+                <input
+                  type="hidden"
+                  name="codigo"
+                  value={asignacionEditando.codigo}
+                />
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <SelectorEdicion
+                      name="docente"
+                      label="Docente *"
+                      opciones={docentes}
+                      valor={asignacionEditando.codigoDocente}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <SelectorEdicion
+                      name="curso"
+                      label="Curso *"
+                      opciones={cursos}
+                      valor={asignacionEditando.idCurso}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <SelectorEdicion
+                      name="horario"
+                      label="Horario *"
+                      opciones={horarios}
+                      valor={asignacionEditando.codigoHorario}
+                    />
+                  </div>
+
+                  <label className={labelClass}>
+                    Fecha desde *
+                    <input
+                      name="desde"
+                      type="date"
+                      required
+                      defaultValue={fechaParaInput(
+                        asignacionEditando.desde
+                      )}
+                      className={inputClass}
+                    />
+                  </label>
+
+                  <label className={labelClass}>
+                    Fecha hasta *
+                    <input
+                      name="hasta"
+                      type="date"
+                      required
+                      defaultValue={fechaParaInput(
+                        asignacionEditando.hasta
+                      )}
+                      className={inputClass}
+                    />
+                  </label>
+
+                  <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+                    Estado *
+                    <select
+                      name="estado"
+                      required
+                      defaultValue={
+                        asignacionEditando.estado === "A" ? "A" : "I"
+                      }
+                      className={inputClass}
+                    >
+                      <option value="A">Activo</option>
+                      <option value="I">Inactivo</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {/* Botones */}
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+                <button
+                  type="button"
+                  onClick={() => setAsignacionEditando(null)}
+                  className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Guardar cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
     </section>
   );
 }

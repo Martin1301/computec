@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   anularOrganizacionCurso,
   actualizarOrganizacionCurso,
@@ -9,6 +10,7 @@ import {
 } from "@/app/actions/organizacion-cursos";
 
 type Props = {
+  aviso?: string;
   cursos: CursoOrganizado[];
   carreras: OpcionCatalogo[];
   modulos: OpcionCatalogo[];
@@ -26,17 +28,22 @@ const labelClass = "block text-sm font-semibold text-slate-700";
 const mensajes: Record<string, string> = {
   creado: "Organización registrada correctamente.",
   actualizado: "Organización actualizada correctamente.",
-  anulado: "Solicitud de anulación procesada.",
+  anulado: "Organización eliminada correctamente.",
 };
 
 const errores: Record<string, string> = {
   campos_obligatorios: "Completa todos los campos obligatorios.",
   orden_invalido: "El orden debe ser un número entero entre 0 y 99.",
   codigo_invalido: "El código indicado no es válido.",
-  no_se_pudo_crear:
-    "No se pudo registrar. Comprueba si la combinación ya existe y revisa el procedimiento almacenado.",
+  no_se_pudo_crear: "No se pudo registrar la organización.",
   no_se_pudo_actualizar: "No se pudo actualizar la organización.",
   no_se_pudo_anular: "No se pudo anular el registro.",
+
+  "ERROR!!!, NO SE GRABARON LOS DATOS":
+    "No se pudieron guardar los datos. Verifica los datos ingresados.",
+
+  "ERROR, EL REGISTRO TIENE MOVIMIENTOS NO SE PUEDE ELIMINAR":
+    "No se puede eliminar este curso porque tiene movimientos relacionados.",
 };
 
 function Selector({
@@ -81,9 +88,25 @@ export default function OrganizacionCursosClient({
   buscar,
   resultado,
   error,
+  aviso,
 }: Props) {
+
+  const [mostrarMensaje, setMostrarMensaje] = useState(
+    Boolean(resultado || error)
+  );
+
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    setMostrarMensaje(Boolean(resultado || error));
+    setGuardando(false);
+  }, [aviso, resultado, error]);
+
   return (
-    <section className="min-w-0 w-full space-y-6">
+    <section
+        className="min-w-0 w-full space-y-6"
+        onChangeCapture={() => setMostrarMensaje(false)}
+      >
       {/* Encabezado */}
       <header className="border-b border-slate-200 pb-5">
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
@@ -101,7 +124,7 @@ export default function OrganizacionCursosClient({
       </header>
 
       {/* Mensajes */}
-      {resultado && mensajes[resultado] && (
+      {mostrarMensaje && resultado && mensajes[resultado] && (
         <div
           role="status"
           className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
@@ -110,7 +133,7 @@ export default function OrganizacionCursosClient({
         </div>
       )}
 
-      {error && (
+      {mostrarMensaje && error && (
         <div
           role="alert"
           className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
@@ -136,6 +159,7 @@ export default function OrganizacionCursosClient({
         ) : (
           <form
             action={crearOrganizacionCurso}
+            onSubmitCapture={() => setGuardando(true)}
             className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3"
           >
             <Selector
@@ -183,11 +207,12 @@ export default function OrganizacionCursosClient({
 
             <div className="flex items-end">
               <button
-                type="submit"
-                className="w-full rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
-              >
-                Registrar organización
-              </button>
+              type="submit"
+              disabled={guardando}
+              className="w-full rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-4 focus:ring-blue-200"
+            >
+              {guardando ? "Guardando..." : "Registrar organización"}
+            </button>
             </div>
           </form>
         )}
@@ -215,7 +240,7 @@ export default function OrganizacionCursosClient({
             <input
               name="buscar"
               defaultValue={buscar}
-              placeholder="Buscar por carrera, módulo o asignatura"
+              placeholder="Buscar por asignatura"
               aria-label="Buscar organizaciones"
               className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 md:w-80"
             />
@@ -260,9 +285,9 @@ export default function OrganizacionCursosClient({
                   </th>
                 ))}
 
-                <th className="w-[300px] whitespace-nowrap border-l border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">
+                <th className="sticky right-0 z-20 w-[150px] whitespace-nowrap border-l border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">
                 Acciones
-                </th>
+              </th>
               </tr>
             </thead>
 
@@ -285,6 +310,7 @@ export default function OrganizacionCursosClient({
                       <form
                         id={formId}
                         action={actualizarOrganizacionCurso}
+                        onSubmitCapture={() => setGuardando(true)}
                       >
                         <input
                           type="hidden"
@@ -408,17 +434,18 @@ export default function OrganizacionCursosClient({
                     </td>
 
                     {/* Acciones fijas a la derecha */}
-                    <td className="w-[150px] border-l border-slate-200 bg-white px-2 py-3 align-middle">
+                    <td className="sticky right-0 z-10 w-[150px] border-l border-slate-200 bg-white px-2 py-3 align-middle">
                     <div className="flex items-center justify-center gap-1.5">
                         <button
                         form={formId}
                         type="submit"
+                        disabled={guardando}
                         title="Guardar cambios"
                         aria-label={`Guardar cambios del curso ${curso.codigo}`}
-                        className="rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white hover:bg-blue-700"
-                        >
-                        Guardar
-                        </button>
+                        className="rounded-md bg-blue-600 px-2 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {guardando ? "Guardando..." : "Guardar"}
+                      </button>
 
                         <form
                         action={anularOrganizacionCurso}

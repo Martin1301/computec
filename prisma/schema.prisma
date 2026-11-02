@@ -235,8 +235,8 @@ model T_MODULO {
 }
 
 model T_PROFESOR {
-  COD_DOCENTE String  @id @db.VarChar(10)
-  NOM_DOCENTE String  @db.VarChar(150) // Longitud común para nombres completos
+  COD_DOCENTE String  @id @db.VarChar(8)
+  NOM_DOCENTE String  @db.VarChar(100)
   EST_DOCENTE String? @db.VarChar(1)
 }
 

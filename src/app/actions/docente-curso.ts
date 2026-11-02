@@ -19,7 +19,9 @@ export type DocenteCurso = {
   modulo: string;
   asignatura: string;
   docente: string;
+  codigoDocente: string;
   horario: string;
+  codigoHorario: string;
   desde: string;
   hasta: string;
   estado: string;
@@ -29,6 +31,11 @@ export type ResultadoDocenteCurso = {
   asignaciones: DocenteCurso[];
   total: number;
   pagina: number;
+};
+
+type RespuestaProcedimiento = {
+  ESTADO: number;
+  MENSAJE: string;
 };
 
 function texto(formData: FormData, campo: string) {
@@ -94,22 +101,29 @@ export async function getOpcionesDocenteCurso() {
       ORDER BY NOM_DOCENTE
     `,
     prisma.$queryRaw<OpcionDocenteCurso[]>`
-      SELECT
-        IDCURSO AS codigo,
+    SELECT
+        v.IDCURSO AS codigo,
         CONCAT(
-          DES_CARRERA, ' / ',
-          DES_MODULO, ' / ',
-          DES_ASIGNATURA
+        v.DES_CARRERA, ' / ',
+        v.DES_MODULO, ' / ',
+        v.DES_ASIGNATURA
         ) AS nombre
-      FROM dbo.V_CURSOS_NIVELES
-      ORDER BY DES_CARRERA, DES_MODULO, DES_ASIGNATURA
+    FROM dbo.V_CURSOS_NIVELES v
+    WHERE EXISTS (
+        SELECT 1
+        FROM dbo.CURSOS_NIVELES cn
+        WHERE cn.IDCURSO = v.IDCURSO
+        AND cn.ESTADO = 'A'
+    )
+    ORDER BY v.DES_CARRERA, v.DES_MODULO, v.DES_ASIGNATURA
     `,
     prisma.$queryRaw<OpcionDocenteCurso[]>`
-      SELECT
+    SELECT
         COD_HORARIO AS codigo,
         CONCAT(DES_HORARIO, ' - ', DESCRIPCION) AS nombre
-      FROM dbo.T_HORARIO
-      ORDER BY DES_HORARIO
+    FROM dbo.T_HORARIO
+    WHERE ESTADO = 'A'
+    ORDER BY DES_HORARIO
     `,
   ]);
 
@@ -158,9 +172,12 @@ export async function getDocentesCurso(
 
   const offset = (paginaValida - 1) * limite;
 
+  
   const filas = await prisma.$queryRaw<
     {
       codigo: string | number;
+      codigoDocente: string;
+      codigoHorario: string;
       idCurso: string | number;
       carrera: string | null;
       modulo: string | null;
@@ -173,34 +190,39 @@ export async function getDocentesCurso(
     }[]
   >`
     SELECT
-      CAST(IDOPERA AS VARCHAR(20)) AS codigo,
-      CAST(IDCURSO AS VARCHAR(50)) AS idCurso,
-      DES_CARRERA AS carrera,
-      DES_MODULO AS modulo,
-      DES_ASIGNATURA AS asignatura,
-      NOM_DOCENTE AS docente,
-      DESCRIPCION AS horario,
-      DESDE AS desde,
-      HASTA AS hasta,
-      ESTADO AS estado
-    FROM dbo.V_DOCENTE_CURSO
+      CAST(v.IDOPERA AS VARCHAR(20)) AS codigo,
+      v.COD_DOCENTE AS codigoDocente,
+      v.COD_HORARIO AS codigoHorario,
+      CAST(v.IDCURSO AS VARCHAR(50)) AS idCurso,
+      v.DES_CARRERA AS carrera,
+      v.DES_MODULO AS modulo,
+      v.DES_ASIGNATURA AS asignatura,
+      v.NOM_DOCENTE AS docente,
+      v.DESCRIPCION AS horario,
+      v.DESDE AS desde,
+      v.HASTA AS hasta,
+      v.ESTADO AS estado
+    FROM dbo.V_DOCENTE_CURSO v
     WHERE
       ${filtro} = ''
-      OR COALESCE(CAST(IDOPERA AS VARCHAR(20)), '') LIKE '%' + ${filtro} + '%'
-      OR COALESCE(NOM_DOCENTE, '') LIKE '%' + ${filtro} + '%'
-      OR COALESCE(DES_CARRERA, '') LIKE '%' + ${filtro} + '%'
-      OR COALESCE(DES_MODULO, '') LIKE '%' + ${filtro} + '%'
-      OR COALESCE(DES_ASIGNATURA, '') LIKE '%' + ${filtro} + '%'
-      OR COALESCE(CAST(IDCURSO AS VARCHAR(50)), '') LIKE '%' + ${filtro} + '%'
-      OR COALESCE(DESCRIPCION, '') LIKE '%' + ${filtro} + '%'
-    ORDER BY IDOPERA
+      OR COALESCE(CAST(v.IDOPERA AS VARCHAR(20)), '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(v.NOM_DOCENTE, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(v.DES_CARRERA, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(v.DES_MODULO, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(v.DES_ASIGNATURA, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(CAST(v.IDCURSO AS VARCHAR(50)), '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(v.DESCRIPCION, '') LIKE '%' + ${filtro} + '%'
+    ORDER BY v.IDOPERA
     OFFSET ${offset} ROWS
     FETCH NEXT ${limite} ROWS ONLY
   `;
 
+
   return {
     asignaciones: filas.map((fila) => ({
       codigo: String(fila.codigo ?? ""),
+      codigoDocente: String(fila.codigoDocente ?? ""),
+      codigoHorario: String(fila.codigoHorario ?? ""),
       idCurso: String(fila.idCurso ?? ""),
       carrera: String(fila.carrera ?? ""),
       modulo: String(fila.modulo ?? ""),
@@ -242,8 +264,10 @@ export async function crearDocenteCurso(formData: FormData) {
     volver("error=estado_invalido");
   }
 
+  let resultado: RespuestaProcedimiento[];
+
   try {
-    await prisma.$queryRaw`
+    resultado = await prisma.$queryRaw<RespuestaProcedimiento[]>`
       EXEC dbo.SP_DOCENTE_CURSO_NUEVO
         ${docente},
         ${curso},
@@ -255,6 +279,13 @@ export async function crearDocenteCurso(formData: FormData) {
   } catch (error) {
     console.error("Error al crear la asignación docente-curso:", error);
     volver("error=no_se_pudo_crear");
+  }
+
+  const respuesta = resultado[0];
+
+  if (Number(respuesta?.ESTADO) !== 1) {
+    const mensaje = respuesta?.MENSAJE || "No se pudo crear la asignación.";
+    volver(`error=${encodeURIComponent(mensaje)}`);
   }
 
   volver("creado");
@@ -286,8 +317,10 @@ export async function actualizarDocenteCurso(formData: FormData) {
     volver("error=estado_invalido");
   }
 
+  let resultado: RespuestaProcedimiento[];
+
   try {
-    await prisma.$queryRaw`
+    resultado = await prisma.$queryRaw<RespuestaProcedimiento[]>`
       EXEC dbo.SP_DOCENTE_CURSO_MODIFICA
         ${codigo},
         ${docente},
@@ -302,6 +335,13 @@ export async function actualizarDocenteCurso(formData: FormData) {
     volver("error=no_se_pudo_actualizar");
   }
 
+  const respuesta = resultado[0];
+
+  if (Number(respuesta?.ESTADO) !== 1) {
+    const mensaje = respuesta?.MENSAJE || "No se pudo actualizar la asignación.";
+    volver(`error=${encodeURIComponent(mensaje)}`);
+  }
+
   volver("actualizado");
 }
 
@@ -314,13 +354,22 @@ export async function eliminarDocenteCurso(formData: FormData) {
     volver("error=codigo_invalido");
   }
 
+  let resultado: RespuestaProcedimiento[];
+
   try {
-    await prisma.$queryRaw`
+    resultado = await prisma.$queryRaw<RespuestaProcedimiento[]>`
       EXEC dbo.SP_DOCENTE_CURSO_ELIMINA ${codigo}
     `;
   } catch (error) {
     console.error("Error al eliminar la asignación docente-curso:", error);
     volver("error=no_se_pudo_eliminar");
+  }
+
+  const respuesta = resultado[0];
+
+  if (Number(respuesta?.ESTADO) !== 1) {
+    const mensaje = respuesta?.MENSAJE || "No se pudo eliminar la asignación.";
+    volver(`error=${encodeURIComponent(mensaje)}`);
   }
 
   volver("eliminado");

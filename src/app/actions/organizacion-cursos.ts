@@ -24,13 +24,20 @@ export type OpcionCatalogo = {
   nombre: string;
 };
 
+type RespuestaProcedimiento = {
+  ESTADO: number;
+  MENSAJE: string;
+};
+
 async function exigirSesion() {
   const session = await getSession();
   if (!session) redirect("/");
 }
 
 function errorFormulario(codigo: string): never {
-  redirect(`${PATH}?error=${encodeURIComponent(codigo)}`);
+  redirect(
+    `${PATH}?error=${encodeURIComponent(codigo)}&aviso=${Date.now()}`
+  );
 }
 
 function esRedireccion(error: unknown) {
@@ -134,6 +141,7 @@ export async function getCatalogosOrganizacion() {
   };
 }
 
+
 export async function crearOrganizacionCurso(formData: FormData) {
   await exigirSesion();
 
@@ -141,7 +149,7 @@ export async function crearOrganizacionCurso(formData: FormData) {
   const modulo = String(formData.get("modulo") ?? "").trim();
   const asignatura = String(formData.get("asignatura") ?? "").trim();
   const ordenTexto = String(formData.get("orden") ?? "").trim();
-  const estado = String(formData.get("estado") ?? "A");
+  const estado = String(formData.get("estado") ?? "A").trim();
   const orden = Number(ordenTexto);
 
   if (!carrera || !modulo || !asignatura || !ordenTexto) {
@@ -155,7 +163,7 @@ export async function crearOrganizacionCurso(formData: FormData) {
   try {
     validarEstado(estado);
 
-    await prisma.$executeRaw`
+    const resultado = await prisma.$queryRaw<RespuestaProcedimiento[]>`
       EXEC dbo.SP_CURSOS_NUEVO
         ${carrera},
         ${modulo},
@@ -163,15 +171,30 @@ export async function crearOrganizacionCurso(formData: FormData) {
         ${orden},
         ${estado}
     `;
+
+    const respuesta = resultado[0];
+
+    if (Number(respuesta?.ESTADO) !== 1) {
+      errorFormulario(
+        respuesta?.MENSAJE || "no_se_pudo_crear"
+      );
+    }
   } catch (error) {
     if (esRedireccion(error)) throw error;
-    console.error("Error al registrar la organización del curso:", error);
+
+    console.error(
+      "Error al registrar la organización del curso:",
+      error
+    );
+
     errorFormulario("no_se_pudo_crear");
   }
 
   revalidatePath(PATH);
-  redirect(`${PATH}?resultado=creado`);
+  redirect(`${PATH}?resultado=creado&aviso=${Date.now()}`);
 }
+
+
 
 export async function actualizarOrganizacionCurso(formData: FormData) {
   await exigirSesion();
@@ -181,7 +204,7 @@ export async function actualizarOrganizacionCurso(formData: FormData) {
   const modulo = String(formData.get("modulo") ?? "").trim();
   const asignatura = String(formData.get("asignatura") ?? "").trim();
   const ordenTexto = String(formData.get("orden") ?? "").trim();
-  const estado = String(formData.get("estado") ?? "");
+  const estado = String(formData.get("estado") ?? "").trim();
   const orden = Number(ordenTexto);
 
   if (!codigo || !carrera || !modulo || !asignatura || !ordenTexto) {
@@ -199,7 +222,7 @@ export async function actualizarOrganizacionCurso(formData: FormData) {
   try {
     validarEstado(estado);
 
-    await prisma.$executeRaw`
+    const resultado = await prisma.$queryRaw<RespuestaProcedimiento[]>`
       EXEC dbo.SP_CURSOS_MODIFICA
         ${codigo},
         ${carrera},
@@ -208,15 +231,30 @@ export async function actualizarOrganizacionCurso(formData: FormData) {
         ${orden},
         ${estado}
     `;
+
+    const respuesta = resultado[0];
+
+    if (Number(respuesta?.ESTADO) !== 1) {
+      errorFormulario(
+        respuesta?.MENSAJE || "no_se_pudo_actualizar"
+      );
+    }
   } catch (error) {
     if (esRedireccion(error)) throw error;
-    console.error("Error al actualizar la organización del curso:", error);
+
+    console.error(
+      "Error al actualizar la organización del curso:",
+      error
+    );
+
     errorFormulario("no_se_pudo_actualizar");
   }
 
   revalidatePath(PATH);
-  redirect(`${PATH}?resultado=actualizado`);
+  redirect(`${PATH}?resultado=actualizado&aviso=${Date.now()}`);
 }
+
+
 
 export async function anularOrganizacionCurso(formData: FormData) {
   await exigirSesion();
@@ -228,15 +266,28 @@ export async function anularOrganizacionCurso(formData: FormData) {
   }
 
   try {
-    await prisma.$executeRaw`
+    const resultado = await prisma.$queryRaw<RespuestaProcedimiento[]>`
       EXEC dbo.SP_CURSOS_ANULA ${codigo}
     `;
+
+    const respuesta = resultado[0];
+
+    if (Number(respuesta?.ESTADO) !== 1) {
+      errorFormulario(
+        respuesta?.MENSAJE || "no_se_pudo_anular"
+      );
+    }
   } catch (error) {
     if (esRedireccion(error)) throw error;
-    console.error("Error al anular la organización del curso:", error);
+
+    console.error(
+      "Error al anular la organización del curso:",
+      error
+    );
+
     errorFormulario("no_se_pudo_anular");
   }
 
   revalidatePath(PATH);
-  redirect(`${PATH}?resultado=anulado`);
+  redirect(`${PATH}?resultado=anulado&aviso=${Date.now()}`);
 }

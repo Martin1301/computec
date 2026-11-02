@@ -68,8 +68,8 @@ export async function crearProfesor(formData: FormData) {
     resultadoError("nombre_obligatorio");
   }
 
-  if (nombre.length > 150) {
-    resultadoError("nombre_largo");
+  if (nombre.length > 100) {
+  resultadoError("nombre_largo");
   }
 
   try {
@@ -103,8 +103,8 @@ export async function actualizarProfesor(formData: FormData) {
     resultadoError("datos_obligatorios");
   }
 
-  if (codigo.length > 10 || nombre.length > 150) {
-    resultadoError("datos_invalidos");
+  if (codigo.length > 8 || nombre.length > 100) {
+  resultadoError("datos_invalidos");
   }
 
   try {
@@ -132,8 +132,8 @@ export async function anularProfesor(formData: FormData) {
 
   const codigo = String(formData.get("codigo") ?? "").trim();
 
-  if (!codigo || codigo.length > 10) {
-    resultadoError("codigo_invalido");
+  if (!codigo || codigo.length > 8) {
+  resultadoError("codigo_invalido");
   }
 
   try {
