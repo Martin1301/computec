@@ -1,0 +1,431 @@
+"use server";
+
+import { prisma } from "@/lib/db";
+import { connection } from "next/server";
+import { getSession } from "@/lib/session";
+import { redirect } from "next/navigation";
+
+export type NotaAlumno = {
+  IDNOTA: string;
+  IDOPERA: string;
+  CODALUMNO: string;
+  ALUMNO: string;
+  A1: number | null;
+  A2: number | null;
+  A3: number | null;
+  CE1: number | null;
+  A4: number | null;
+  A5: number | null;
+  A6: number | null;
+  C2: number | null;
+  M2: number | null;
+  FINAL: number | null;
+  CE2: number | null;
+  LOGRO: number | null;
+  OBSERVACION: string | null;
+  NOM_DOCENTE: string;
+  DES_ASIGNATURA: string;
+  DES_MODULO: string;
+  DES_CARRERA: string;
+  DESHORARIO: string;
+  DESDE: Date | null;
+  HASTA: Date | null;
+  ANIO: number | null;
+  ESTADO: string;
+  FALTA?: number;
+};
+
+export type OperacionNotas = {
+  IDOPERA: string;
+  COD_DOCENTE: string;
+  NOM_DOCENTE: string;
+  DES_ASIGNATURA: string;
+  DES_MODULO: string;
+  DES_CARRERA: string;
+  DESHORARIO: string;
+  DESDE: Date | null;
+  HASTA: Date | null;
+  ANIO: number | null;
+  ESTADO: string;
+  CANTIDAD_ALUMNOS: number;
+};
+
+async function comprobarSesion() {
+  const sesion = await getSession();
+
+  if (!sesion) {
+    redirect("/");
+  }
+
+  return sesion;
+}
+
+/**
+ * Obtener el récord completo de notas de un alumno.
+ * Se consulta V_NOTAALUMNO para conservar las relaciones
+ * y los criterios utilizados por el sistema PHP original.
+ */
+export async function getNotasByAlumno(
+  codAlumno: string
+): Promise<NotaAlumno[]> {
+  await connection();
+  await comprobarSesion();
+
+  try {
+    return await prisma.$queryRaw<NotaAlumno[]>`
+      SELECT
+        IDNOTA,
+        IDOPERA,
+        CODALUMNO,
+        ALUMNO,
+        A1,
+        A2,
+        A3,
+        CE1,
+        A4,
+        A5,
+        A6,
+        C2,
+        M2,
+        FINAL,
+        CE2,
+        LOGRO,
+        OBSERVACION,
+        NOM_DOCENTE,
+        DES_ASIGNATURA,
+        DES_MODULO,
+        DES_CARRERA,
+        DESHORARIO,
+        DESDE,
+        HASTA,
+        ANIO,
+        ESTADO
+      FROM dbo.V_NOTAALUMNO
+      WHERE CODALUMNO = ${codAlumno}
+      ORDER BY ORDEN
+    `;
+  } catch (error) {
+    console.error("Error al consultar el récord de notas:", error);
+    return [];
+  }
+}
+
+/**
+ * Resultado paginado de las operaciones de notas.
+ */
+export type ResultadoOperacionesNotas = {
+  operaciones: OperacionNotas[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+  porPagina: number;
+};
+
+/**
+ * Listar operaciones con paginación directamente en SQL Server.
+ * Conserva los mismos filtros y columnas del listado original.
+ */
+
+export async function getOperacionesNotas(
+  buscar = "",
+  paginaSolicitada = 1
+): Promise<ResultadoOperacionesNotas> {
+  const inicioTotal = performance.now();
+
+  const inicioConexion = performance.now();
+  await connection();
+
+  console.log(
+    `[NOTAS] Conexión: ${(performance.now() - inicioConexion).toFixed(2)} ms`
+  );
+
+  const inicioSesion = performance.now();
+  await comprobarSesion();
+
+  console.log(
+    `[NOTAS] Sesión: ${(performance.now() - inicioSesion).toFixed(2)} ms`
+  );
+
+  const filtro = buscar.trim().slice(0, 150);
+  const porPagina = 10;
+
+  const paginaInicial = Number.isFinite(paginaSolicitada)
+    ? Math.max(1, Math.floor(paginaSolicitada))
+    : 1;
+
+  try {
+    /*
+     * CONTEO OPTIMIZADO
+     *
+     * Parte de DOCENTE_CURSO y comprueba que exista
+     * al menos una nota asociada a un alumno válido.
+     *
+     * Conserva las relaciones INNER JOIN de V_NOTAALUMNO.
+     */
+    const inicioConteo = performance.now();
+
+const resultadoConteo = await prisma.$queryRaw<
+  { TOTAL: number | bigint }[]
+>`
+  -- Obtener las operaciones que tienen alumnos válidos.
+  SELECT DISTINCT N.IDOPERA
+  INTO #OPERACIONES_VALIDAS
+  FROM dbo.NOTA_ALUMNO N
+  INNER JOIN dbo.T_ALUMNOS A
+    ON A.CODALUMNO = N.CODALUMNO;
+
+  -- Crear índice temporal para acelerar la relación.
+  CREATE UNIQUE CLUSTERED INDEX IX_TEMP_OPERACIONES
+  ON #OPERACIONES_VALIDAS (IDOPERA);
+
+  -- Contar las operaciones conservando los filtros originales.
+  SELECT COUNT(DISTINCT DC.IDOPERA) AS TOTAL
+  FROM dbo.DOCENTE_CURSO DC
+
+  INNER JOIN dbo.T_PROFESOR P
+    ON P.COD_DOCENTE = DC.COD_DOCENTE
+
+  INNER JOIN dbo.V_CURSOS_NIVELES V
+    ON V.IDCURSO = DC.IDCURSO
+
+  INNER JOIN dbo.T_HORARIO H
+    ON H.COD_HORARIO = DC.COD_HORARIO
+
+  INNER JOIN #OPERACIONES_VALIDAS O
+    ON O.IDOPERA = DC.IDOPERA
+
+  WHERE
+    (
+      ${filtro} = ''
+      OR CAST(DC.IDOPERA AS VARCHAR(20)) LIKE '%' + ${filtro} + '%'
+      OR COALESCE(P.NOM_DOCENTE, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(V.DES_ASIGNATURA, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(V.DES_MODULO, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(V.DES_CARRERA, '') LIKE '%' + ${filtro} + '%'
+    );
+
+  DROP TABLE #OPERACIONES_VALIDAS;
+`;
+
+console.log(
+  `[NOTAS] Conteo SQL optimizado: ${(performance.now() - inicioConteo).toFixed(2)} ms`
+);
+
+const total = Number(resultadoConteo[0]?.TOTAL ?? 0);
+
+    const totalPaginas = Math.max(
+      1,
+      Math.ceil(total / porPagina)
+    );
+
+    const pagina = Math.min(paginaInicial, totalPaginas);
+    const desplazamiento = (pagina - 1) * porPagina;
+
+    /*
+     * LISTADO OPTIMIZADO
+     *
+     * Consulta las tablas directamente en lugar de recorrer
+     * repetidamente V_NOTAALUMNO.
+     *
+     * Mantiene ESTADO en el GROUP BY para conservar
+     * el comportamiento de la consulta original.
+     */
+    const inicioListado = performance.now();
+
+const operaciones = await prisma.$queryRaw<
+  (Omit<OperacionNotas, "CANTIDAD_ALUMNOS"> & {
+    CANTIDAD_ALUMNOS: bigint | number;
+  })[]
+>`
+  -- Limpiar una posible tabla temporal anterior de esta conexión.
+  DROP TABLE IF EXISTS #RESUMEN_NOTAS;
+
+  -- Resumir los alumnos válidos por operación y estado.
+  SELECT
+    N.IDOPERA,
+    N.ESTADO,
+    COUNT(DISTINCT N.CODALUMNO) AS CANTIDAD_ALUMNOS
+  INTO #RESUMEN_NOTAS
+  FROM dbo.NOTA_ALUMNO N
+  INNER JOIN dbo.T_ALUMNOS A
+    ON A.CODALUMNO = N.CODALUMNO
+  GROUP BY
+    N.IDOPERA,
+    N.ESTADO;
+
+  CREATE UNIQUE CLUSTERED INDEX IX_RESUMEN_NOTAS
+  ON #RESUMEN_NOTAS (IDOPERA, ESTADO);
+
+  -- Obtener únicamente las operaciones de la página solicitada.
+  SELECT
+    DC.IDOPERA,
+    DC.COD_DOCENTE,
+    P.NOM_DOCENTE,
+    V.DES_ASIGNATURA,
+    V.DES_MODULO,
+    V.DES_CARRERA,
+    H.DESCRIPCION AS DESHORARIO,
+    DC.DESDE,
+    DC.HASTA,
+    YEAR(DC.DESDE) AS ANIO,
+    R.ESTADO,
+    MAX(R.CANTIDAD_ALUMNOS) AS CANTIDAD_ALUMNOS
+
+  FROM dbo.DOCENTE_CURSO DC
+
+  INNER JOIN dbo.T_PROFESOR P
+    ON P.COD_DOCENTE = DC.COD_DOCENTE
+
+  INNER JOIN dbo.V_CURSOS_NIVELES V
+    ON V.IDCURSO = DC.IDCURSO
+
+  INNER JOIN dbo.T_HORARIO H
+    ON H.COD_HORARIO = DC.COD_HORARIO
+
+  INNER JOIN #RESUMEN_NOTAS R
+    ON R.IDOPERA = DC.IDOPERA
+
+  WHERE
+    (
+      ${filtro} = ''
+      OR CAST(DC.IDOPERA AS VARCHAR(20)) LIKE '%' + ${filtro} + '%'
+      OR COALESCE(P.NOM_DOCENTE, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(V.DES_ASIGNATURA, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(V.DES_MODULO, '') LIKE '%' + ${filtro} + '%'
+      OR COALESCE(V.DES_CARRERA, '') LIKE '%' + ${filtro} + '%'
+    )
+
+  GROUP BY
+    DC.IDOPERA,
+    DC.COD_DOCENTE,
+    P.NOM_DOCENTE,
+    V.DES_ASIGNATURA,
+    V.DES_MODULO,
+    V.DES_CARRERA,
+    H.DESCRIPCION,
+    DC.DESDE,
+    DC.HASTA,
+    R.ESTADO
+
+  ORDER BY DC.IDOPERA DESC
+
+  OFFSET ${desplazamiento} ROWS
+  FETCH NEXT ${porPagina} ROWS ONLY;
+
+  DROP TABLE #RESUMEN_NOTAS;
+`;
+
+      console.log(
+  `[NOTAS] Listado SQL: ${(performance.now() - inicioListado).toFixed(2)} ms`
+);
+
+console.log(
+  `[NOTAS] Total servidor: ${(performance.now() - inicioTotal).toFixed(2)} ms`
+);
+
+    return {
+      operaciones: operaciones.map((operacion) => ({
+        ...operacion,
+        CANTIDAD_ALUMNOS: Number(operacion.CANTIDAD_ALUMNOS),
+      })),
+      total,
+      pagina,
+      totalPaginas,
+      porPagina,
+    };
+    
+  } catch (error) {
+    console.error(
+      "Error al listar las operaciones de notas:",
+      error
+    );
+
+    return {
+      operaciones: [],
+      total: 0,
+      pagina: 1,
+      totalPaginas: 1,
+      porPagina,
+    };
+    
+  }
+  
+}
+
+
+/**
+ * Obtener el registro de calificaciones de una operación.
+ * Incluye el conteo de faltas según SP_LISTA_NOTA_ALUMNO.
+ */
+export async function getNotasByOperacion(
+  idOpera: string
+): Promise<NotaAlumno[]> {
+  const inicioTotal = performance.now();
+
+  const inicioConexion = performance.now();
+  await connection();
+
+  console.log(
+    `[NOTAS] connection(): ${(performance.now() - inicioConexion).toFixed(2)} ms`
+  );
+
+  const inicioSesion = performance.now();
+  await comprobarSesion();
+
+  console.log(
+    `[NOTAS] Sesión: ${(performance.now() - inicioSesion).toFixed(2)} ms`
+  );
+
+  const codigo = idOpera.trim();
+
+  if (!codigo || codigo.length > 8) {
+    return [];
+  }
+
+  try {
+    return await prisma.$queryRaw<NotaAlumno[]>`
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY V.ALUMNO ASC) AS ORDENS,
+        V.IDNOTA,
+        V.IDOPERA,
+        V.CODALUMNO,
+        V.ALUMNO,
+        V.A1,
+        V.A2,
+        V.A3,
+        V.CE1,
+        V.A4,
+        V.A5,
+        V.A6,
+        V.C2,
+        V.M2,
+        V.FINAL,
+        V.CE2,
+        V.LOGRO,
+        V.OBSERVACION,
+        V.NOM_DOCENTE,
+        V.DES_ASIGNATURA,
+        V.DES_MODULO,
+        V.DES_CARRERA,
+        V.DESHORARIO,
+        V.DESDE,
+        V.HASTA,
+        V.ANIO,
+        V.ESTADO,
+        (
+          SELECT COUNT(*)
+          FROM dbo.MARCACION M
+          WHERE M.CODDOCENTE = V.COD_DOCENTE
+            AND M.CODALUMNO = V.CODALUMNO
+            AND M.IDOPERA = V.IDOPERA
+            AND M.HORAMARCA = 'F'
+        ) AS FALTA
+      FROM dbo.V_NOTAALUMNO V
+      WHERE V.IDOPERA = ${codigo}
+      ORDER BY V.ALUMNO ASC
+    `;
+  } catch (error) {
+    console.error("Error al consultar las notas de la operación:", error);
+    return [];
+  }
+}

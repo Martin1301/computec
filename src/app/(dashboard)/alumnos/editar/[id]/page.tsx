@@ -1,16 +1,18 @@
 import { notFound } from "next/navigation"
 import { getAlumnoByCodigo, updateAlumno } from "@/app/actions/alumnos"
 import FormularioEditar from "./FormularioEditar"
+import { connection } from "next/server"
 
 interface Props {
   params: Promise<{ id: string }>
 }
 
 export default async function EditarAlumnoPage({ params }: Props) {
+  await connection()
+
   const { id } = await params
   const alumno = await getAlumnoByCodigo(id)
 
-  // Si el código no existe en SQL Server, Next.js muestra una vista 404 controlada
   if (!alumno) {
     notFound()
   }

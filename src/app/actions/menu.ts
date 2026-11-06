@@ -1,44 +1,119 @@
-"use server"
+export type Submodulo = {
+  cod_submenu: string;
+  des_submenu: string;
+  ruta: string;
+  icono: string;
+};
 
-import { prisma } from "@/lib/db"
-import { connection } from "next/server"
+export type Menu = {
+  cod_menu: string;
+  des_menu: string;
+  icono: string;
+  submodulos: Submodulo[];
+};
 
-export async function getMenuEstructural() {
-  await connection() // Forzar renderizado dinámico en Next.js v16
-
-  try {
-    // 1. Traemos las categorías de menú principales
-    const menusPrincipales = await prisma.mENU.findMany({
-      orderBy: { cod_menu: "asc" }
-    })
-    
-    // 2. Traemos SOLO los submódulos vinculados a Alumnos, Matrículas y Calificaciones (Notas)
-    const subMenus = await prisma.mENU_SUB.findMany({
-      where: {
-        OR: [
-          { des_submenu: { contains: "ALUMNO" } },
-          { des_submenu: { contains: "MATRICULA" } },
-          { des_submenu: { contains: "NOTA" } },
-          { des_submenu: { contains: "CALIFICACION" } },
-          { des_submenu: { contains: "CARRERA" } },
-          { des_submenu: { contains: "MODULO" } },
-          { des_submenu: { contains: "ASIGNATURA" } }
-        ]
-      },
-      orderBy: { cod_submenu: "asc" }
-    })
-
-    // 3. Unimos las estructuras omitiendo las categorías que se hayan quedado vacías
-    const menuCompleto = menusPrincipales
-      .map(menu => ({
-        ...menu,
-        submodulos: subMenus.filter(sub => sub.cod_menu === menu.cod_menu)
-      }))
-      .filter(menu => menu.submodulos.length > 0) // Si un menú no tiene subcomponentes de notas/alumnos, se oculta
-
-    return menuCompleto
-  } catch (error) {
-    console.error("Error al filtrar el menú académico de SQL Server:", error)
-    return []
-  }
+export async function getMenuEstructural(): Promise<Menu[]> {
+  return [
+    {
+      cod_menu: "academico",
+      des_menu: "Académico",
+      icono: "▦",
+      submodulos: [
+        {
+          cod_submenu: "alumnos",
+          des_submenu: "Alumnos",
+          ruta: "/alumnos",
+          icono: "♟",
+        },
+        {
+          cod_submenu: "carreras",
+          des_submenu: "Carreras",
+          ruta: "/carreras",
+          icono: "▤",
+        },
+        {
+          cod_submenu: "modulos",
+          des_submenu: "Módulos",
+          ruta: "/modulos",
+          icono: "▦",
+        },
+        {
+          cod_submenu: "asignaturas",
+          des_submenu: "Asignaturas",
+          ruta: "/asignaturas",
+          icono: "▧",
+        },
+      ],
+    },
+    {
+      cod_menu: "organizacion",
+      des_menu: "Organización académica",
+      icono: "◫",
+      submodulos: [
+        {
+          cod_submenu: "profesores",
+          des_submenu: "Profesores",
+          ruta: "/profesores",
+          icono: "♙",
+        },
+        {
+          cod_submenu: "docente-curso",
+          des_submenu: "Docente - Curso",
+          ruta: "/docente-curso",
+          icono: "⇄",
+        },
+        {
+          cod_submenu: "organizacion-cursos",
+          des_submenu: "Organización de cursos",
+          ruta: "/organizacion-cursos",
+          icono: "▥",
+        },
+        {
+          cod_submenu: "horarios",
+          des_submenu: "Horarios",
+          ruta: "/horarios",
+          icono: "◷",
+        },
+      ],
+    },
+    {
+      cod_menu: "matriculas",
+      des_menu: "Matrículas",
+      icono: "▣",
+      submodulos: [
+        {
+          cod_submenu: "gestion-matriculas",
+          des_submenu: "Gestión de matrículas",
+          ruta: "/matriculas",
+          icono: "▣",
+        },
+      ],
+    },
+    {
+      cod_menu: "evaluacion",
+      des_menu: "Evaluación",
+      icono: "✓",
+      submodulos: [
+        {
+          cod_submenu: "notas",
+          des_submenu: "Notas",
+          ruta: "/notas",
+          icono: "✓",
+        },
+      ],
+    },
+    {
+      cod_menu: "asistencia",
+      des_menu: "Asistencia",
+      icono: "◷",
+      submodulos: [
+        {
+          cod_submenu: "registro-asistencia",
+          des_submenu: "Registro de asistencia",
+          ruta: "/asistencia",
+          icono: "◷",
+        },
+      ],
+    },
+  ];
 }

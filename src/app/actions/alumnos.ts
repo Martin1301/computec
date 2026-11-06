@@ -1,13 +1,9 @@
 "use server"
 
 import { prisma } from "@/lib/db"
-import { connection } from "next/server"
-
-// (Mantén tus imports de prisma y connection arriba)
 
 // Función para obtener los datos actuales de un solo alumno
 export async function getAlumnoByCodigo(codigo: string) {
-  await connection()
   try {
     const alumno = await prisma.t_ALUMNOS.findUnique({
       where: { CODALUMNO: codigo }
@@ -21,7 +17,6 @@ export async function getAlumnoByCodigo(codigo: string) {
 
 // Función para procesar la actualización en la BD
 export async function updateAlumno(codigo: string, formData: FormData) {
-  await connection()
   
   const apellidoPat = formData.get("apellidoPat")?.toString()
   const apellidoMat = formData.get("apellidoMat")?.toString()
@@ -52,14 +47,73 @@ export async function updateAlumno(codigo: string, formData: FormData) {
 }
 
 
-export async function getAlumnos() {
-  try {
-    // Asegura el renderizado en tiempo de petición para Next.js v16
-    await connection() 
 
-    // LLAMADA CORRECTA: 't' minúscula combinada con 'ALUMNOS' en mayúscula
+export type ResultadoAlumnos = {
+  alumnos: {
+    CODALUMNO: string;
+    APELLIDO_PAT: string;
+    APELLIDO_MAT: string;
+    NOMBRES: string;
+    EMAIL: string | null;
+    ESTADO: string | null;
+  }[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+  porPagina: number;
+};
+
+export async function getAlumnos(
+  buscar = "",
+  paginaSolicitada = 1
+): Promise<ResultadoAlumnos> {
+  const termino = buscar.trim().slice(0, 150);
+  const porPagina = 10;
+
+  const paginaInicial = Number.isFinite(paginaSolicitada)
+    ? Math.max(1, Math.floor(paginaSolicitada))
+    : 1;
+
+  const where = termino
+    ? {
+        OR: [
+          { CODALUMNO: { contains: termino } },
+          { APELLIDO_PAT: { contains: termino } },
+          { APELLIDO_MAT: { contains: termino } },
+          { NOMBRES: { contains: termino } },
+          { NOMUNIDO: { contains: termino } },
+          { EMAIL: { contains: termino } },
+        ],
+      }
+    : undefined;
+
+  try {
+    // Contar los registros que coinciden con la búsqueda.
+    const total = await prisma.t_ALUMNOS.count({
+      where,
+    });
+
+    const totalPaginas = Math.max(
+      1,
+      Math.ceil(total / porPagina)
+    );
+
+    // Evitar solicitar páginas que no existen.
+    const pagina = Math.min(paginaInicial, totalPaginas);
+
+    const desplazamiento = (pagina - 1) * porPagina;
+
+    // Consultar únicamente los alumnos de la página actual.
     const alumnos = await prisma.t_ALUMNOS.findMany({
-      take: 20, 
+      where,
+      skip: desplazamiento,
+      take: porPagina,
+      orderBy: [
+        { APELLIDO_PAT: "asc" },
+        { APELLIDO_MAT: "asc" },
+        { NOMBRES: "asc" },
+        { CODALUMNO: "asc" },
+      ],
       select: {
         CODALUMNO: true,
         APELLIDO_PAT: true,
@@ -67,79 +121,125 @@ export async function getAlumnos() {
         NOMBRES: true,
         EMAIL: true,
         ESTADO: true,
-      }
-    })
-    return alumnos
+      },
+    });
+
+    return {
+      alumnos,
+      total,
+      pagina,
+      totalPaginas,
+      porPagina,
+    };
   } catch (error) {
-    console.error("Error real de SQL Server:", error)
-    throw new Error("No se pudieron cargar los alumnos")
+    console.error("Error al consultar alumnos en SQL Server:", error);
+    throw new Error("No se pudieron cargar los alumnos.");
   }
 }
 
+
 // (Mantén las funciones de getAlumnos, getAlumnoByCodigo y updateAlumno que ya creamos)
 
-// Función para INSERTAR un nuevo alumno en SQL Server
+// Función para INSERTAR un nuevo alumno con código automático.
 export async function createAlumno(formData: FormData) {
-  await connection() // Forzar ruta dinámica para Next.js v16+
-
-  // Extraemos rigurosamente TODOS los campos obligatorios y opcionales de tu modelo
-  const codAlumno = formData.get("codAlumno")?.toString().trim()
   const apellidoPat = formData.get("apellidoPat")?.toString().trim()
   const apellidoMat = formData.get("apellidoMat")?.toString().trim()
   const nombres = formData.get("nombres")?.toString().trim()
   const fechaNacStr = formData.get("fechaNac")?.toString()
   const sexo = formData.get("sexo")?.toString()
   const domicilio = formData.get("domicilio")?.toString().trim()
-  const codLocal = formData.get("codLocal")?.toString() || "01" // Valor por defecto común si aplica
+  const codLocal = formData.get("codLocal")?.toString().trim() || "00"
   const telefono = formData.get("telefono")?.toString().trim()
   const email = formData.get("email")?.toString().trim()
-  const codigoAsist = formData.get("codigoAsist")?.toString().trim() || "ASIST"
+  const codigoAsist = formData.get("codigoAsist")?.toString().trim()
   const estado = formData.get("estado")?.toString() || "A"
 
-  // 1. Validación de seguridad en el servidor: Campos NOT NULL obligatorios
-  if (!codAlumno || !apellidoPat || !apellidoMat || !nombres || !fechaNacStr || !sexo || !codLocal || !codigoAsist) {
-    return { error: "Por favor, complete todos los campos obligatorios del registro." }
+  if (
+    !apellidoPat ||
+    !apellidoMat ||
+    !nombres ||
+    !fechaNacStr ||
+    !sexo ||
+    !codLocal ||
+    !codigoAsist
+  ) {
+    return {
+      error: "Por favor, complete todos los campos obligatorios del registro.",
+    }
   }
 
-  // 2. Formateamos la fecha correctamente para el tipo DateTime de SQL Server 2014
-  const fechaNac = new Date(fechaNacStr)
+  if (!["M", "F"].includes(sexo)) {
+    return { error: "El sexo seleccionado no es válido." }
+  }
 
-  // 3. Procesamos el campo concatenado NOMUNIDO de forma automática para no omitirlo
+  const fechaNac = new Date(`${fechaNacStr}T00:00:00`)
+
+  if (Number.isNaN(fechaNac.getTime())) {
+    return { error: "La fecha de nacimiento no es válida." }
+  }
+
+  if (codLocal.length > 2 || codigoAsist.length > 20) {
+    return { error: "Revise la longitud del código local o de asistencia." }
+  }
+
   const nomUnido = `${apellidoPat} ${apellidoMat} ${nombres}`.toUpperCase()
 
   try {
-    // Verificamos primero que el código no esté duplicado en el archivo .mdf
-    const existe = await prisma.t_ALUMNOS.findUnique({
-      where: { CODALUMNO: codAlumno }
+    const codAlumno = await prisma.$transaction(async (tx) => {
+      // El bloqueo exclusivo evita que dos registros simultáneos
+      // calculen el mismo código.
+      const resultado = await tx.$queryRaw<{ ULTIMO: bigint }[]>`
+        SELECT
+          COALESCE(
+            MAX(TRY_CONVERT(BIGINT, CODALUMNO)),
+            CONVERT(BIGINT, 0)
+          ) AS ULTIMO
+        FROM dbo.T_ALUMNOS WITH (TABLOCKX, HOLDLOCK)
+      `
+
+      const ultimoCodigo = Number(resultado[0]?.ULTIMO ?? 0n)
+      const siguienteCodigo = ultimoCodigo + 1
+
+      if (
+        !Number.isSafeInteger(siguienteCodigo) ||
+        siguienteCodigo > 99999999
+      ) {
+        throw new Error("Se alcanzó el límite de códigos de ocho dígitos.")
+      }
+
+      const nuevoCodigo = String(siguienteCodigo).padStart(8, "0")
+
+      await tx.t_ALUMNOS.create({
+        data: {
+          CODALUMNO: nuevoCodigo,
+          APELLIDO_PAT: apellidoPat.toUpperCase(),
+          APELLIDO_MAT: apellidoMat.toUpperCase(),
+          NOMBRES: nombres.toUpperCase(),
+          FECHA_NAC: fechaNac,
+          SEXO: sexo,
+          DOMICILIO: domicilio || null,
+          COD_LOCAL: codLocal,
+          TELEFONO: telefono || null,
+          EMAIL: email || null,
+          CODIGO_ASIST: codigoAsist,
+          ESTADO: estado,
+          NOMUNIDO: nomUnido,
+        },
+      })
+
+      return nuevoCodigo
     })
 
-    if (existe) {
-      return { error: `El código de alumno [${codAlumno}] ya se encuentra registrado.` }
+    return { success: true, codAlumno }
+  } catch (error) {
+    console.error("Error al insertar alumno en SQL Server:", error)
+
+    if (error instanceof Error && error.message.includes("límite de códigos")) {
+      return { error: error.message }
     }
 
-    // Insertamos el registro completo respetando el 100% de la estructura de tu BD
-    await prisma.t_ALUMNOS.create({
-      data: {
-        CODALUMNO: codAlumno,
-        APELLIDO_PAT: apellidoPat.toUpperCase(),
-        APELLIDO_MAT: apellidoMat.toUpperCase(),
-        NOMBRES: nombres.toUpperCase(),
-        FECHA_NAC: fechaNac,
-        SEXO: sexo,
-        DOMICILIO: domicilio || null,
-        COD_LOCAL: codLocal,
-        TELEFONO: telefono || null,
-        EMAIL: email || null,
-        CODIGO_ASIST: codigoAsist,
-        ESTADO: estado,
-        NOMUNIDO: nomUnido
-      }
-    })
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error crítico al insertar alumno en SQL Server:", error)
-    return { error: "No se pudo guardar el registro del alumno en la base de datos." }
+    return {
+      error: "No se pudo guardar el registro del alumno en la base de datos.",
+    }
   }
 }
-

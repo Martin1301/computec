@@ -1,3 +1,4 @@
+
 "use server";
 
 import { prisma } from "@/lib/db";
@@ -20,13 +21,20 @@ export type Turno = {
   DES_TURNO: string;
 };
 
+type ResultadoSP = {
+  ESTADO: number;
+  MENSAJE: string;
+};
+
 async function exigirSesion() {
   const session = await getSession();
   if (!session) redirect("/");
 }
 
 function volverConError(error: string): never {
-  redirect(`/horarios?error=${encodeURIComponent(error)}`);
+  redirect(
+    `/horarios?error=${encodeURIComponent(error)}&aviso=${Date.now()}`
+  );
 }
 
 function esRedireccion(error: unknown): boolean {
@@ -41,6 +49,10 @@ function validarEstado(estado: string) {
   if (estado !== "A" && estado !== "I") {
     throw new Error("Estado no válido.");
   }
+}
+
+function procedimientoCorrecto(resultado: ResultadoSP[]) {
+  return Number(resultado[0]?.ESTADO) === 1;
 }
 
 export async function getHorarios(buscar = ""): Promise<Horario[]> {
@@ -68,7 +80,9 @@ export async function getTurnos(): Promise<Turno[]> {
         COD_TURNO: true,
         DES_TURNO: true,
       },
-      orderBy: { DES_TURNO: "asc" },
+      orderBy: {
+        DES_TURNO: "asc",
+      },
     });
   } catch (error) {
     console.error("Error al consultar turnos:", error);
@@ -89,25 +103,39 @@ export async function crearHorario(formData: FormData) {
     volverConError("campos_obligatorios");
   }
 
-  if (nombre.length > 80 || descripcion.length > 100 || sigla.length > 7) {
+  if (
+    nombre.length > 80 ||
+    descripcion.length > 100 ||
+    sigla.length > 7
+  ) {
     volverConError("datos_demasiado_largos");
   }
 
-  try {
-    validarEstado(estado);
+  validarEstado(estado);
 
-    await prisma.$executeRaw`
+  let resultado: ResultadoSP[];
+
+  try {
+    resultado = await prisma.$queryRaw<ResultadoSP[]>`
       EXEC dbo.SP_HORARIO_NUEVO
-        ${nombre}, ${turno}, ${descripcion}, ${sigla}, ${estado}
+        ${nombre},
+        ${turno},
+        ${descripcion},
+        ${sigla},
+        ${estado}
     `;
   } catch (error) {
-    if (esRedireccion(error)) throw error;
     console.error("Error al crear horario:", error);
     volverConError("no_se_pudo_crear");
   }
 
+  if (!procedimientoCorrecto(resultado)) {
+    console.error("SP_HORARIO_NUEVO:", resultado);
+    volverConError("no_se_pudo_crear");
+  }
+
   revalidatePath("/horarios");
-  redirect("/horarios?resultado=creado");
+  redirect(`/horarios?resultado=creado&aviso=${Date.now()}`);
 }
 
 export async function actualizarHorario(formData: FormData) {
@@ -133,21 +161,32 @@ export async function actualizarHorario(formData: FormData) {
     volverConError("datos_demasiado_largos");
   }
 
-  try {
-    validarEstado(estado);
+  validarEstado(estado);
 
-    await prisma.$executeRaw`
+  let resultado: ResultadoSP[];
+
+  try {
+    resultado = await prisma.$queryRaw<ResultadoSP[]>`
       EXEC dbo.SP_HORARIO_MODIFICA
-        ${codigo}, ${nombre}, ${turno}, ${descripcion}, ${sigla}, ${estado}
+        ${codigo},
+        ${nombre},
+        ${turno},
+        ${descripcion},
+        ${sigla},
+        ${estado}
     `;
   } catch (error) {
-    if (esRedireccion(error)) throw error;
     console.error("Error al actualizar horario:", error);
     volverConError("no_se_pudo_actualizar");
   }
 
+  if (!procedimientoCorrecto(resultado)) {
+    console.error("SP_HORARIO_MODIFICA:", resultado);
+    volverConError("no_se_pudo_actualizar");
+  }
+
   revalidatePath("/horarios");
-  redirect("/horarios?resultado=actualizado");
+  redirect(`/horarios?resultado=actualizado&aviso=${Date.now()}`);
 }
 
 export async function anularHorario(formData: FormData) {
@@ -159,16 +198,22 @@ export async function anularHorario(formData: FormData) {
     volverConError("codigo_invalido");
   }
 
+  let resultado: ResultadoSP[];
+
   try {
-    await prisma.$executeRaw`
+    resultado = await prisma.$queryRaw<ResultadoSP[]>`
       EXEC dbo.SP_HORARIO_ANULA ${codigo}
     `;
   } catch (error) {
-    if (esRedireccion(error)) throw error;
-    console.error("Error al anular horario:", error);
+    console.error("Error al eliminar horario:", error);
+    volverConError("no_se_pudo_anular");
+  }
+
+  if (!procedimientoCorrecto(resultado)) {
+    console.error("SP_HORARIO_ANULA:", resultado);
     volverConError("no_se_pudo_anular");
   }
 
   revalidatePath("/horarios");
-  redirect("/horarios?resultado=anulado");
+  redirect(`/horarios?resultado=anulado&aviso=${Date.now()}`);
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { crearCatalogo, actualizarCatalogo, eliminarCatalogo, getCatalogo } from "@/app/actions/catalogos"
 
 const titulos = { carreras: "Carreras", modulos: "Módulos", asignaturas: "Asignaturas" } as const
@@ -15,6 +16,18 @@ export default async function CatalogoPage({ tipo }: { tipo: "carreras" | "modul
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">{titulos[tipo]}</h1>
       <p className="text-sm text-slate-500">{descripciones[tipo]}</p>
     </header>
+    {tipo === "carreras" && (
+      <div className="flex justify-end">
+        <Link
+          href="/carreras/reporte"
+          className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+        >
+          <span>▤</span>
+          Reporte de carreras
+        </Link>
+      </div>
+    )}
+
     <form action={crearCatalogo} className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:grid-cols-[1fr_180px_auto] md:items-end">
       <input type="hidden" name="tipo" value={tipo} />
       <label className="block text-sm font-semibold text-slate-700">Nombre

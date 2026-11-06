@@ -1,0 +1,239 @@
+"use server";
+
+import { prisma } from "@/lib/db";
+import { connection } from "next/server";
+import { getSession } from "@/lib/session";
+import { redirect } from "next/navigation";
+
+export type NotaAlumno = {
+  IDNOTA: string;
+  IDOPERA: string;
+  CODALUMNO: string;
+  ALUMNO: string;
+  A1: number | null;
+  A2: number | null;
+  A3: number | null;
+  CE1: number | null;
+  A4: number | null;
+  A5: number | null;
+  A6: number | null;
+  C2: number | null;
+  M2: number | null;
+  FINAL: number | null;
+  CE2: number | null;
+  LOGRO: number | null;
+  OBSERVACION: string | null;
+  NOM_DOCENTE: string;
+  DES_ASIGNATURA: string;
+  DES_MODULO: string;
+  DES_CARRERA: string;
+  DESHORARIO: string;
+  DESDE: Date | null;
+  HASTA: Date | null;
+  ANIO: number | null;
+  ESTADO: string;
+  FALTA?: number;
+};
+
+export type OperacionNotas = {
+  IDOPERA: string;
+  COD_DOCENTE: string;
+  NOM_DOCENTE: string;
+  DES_ASIGNATURA: string;
+  DES_MODULO: string;
+  DES_CARRERA: string;
+  DESHORARIO: string;
+  DESDE: Date | null;
+  HASTA: Date | null;
+  ANIO: number | null;
+  ESTADO: string;
+  CANTIDAD_ALUMNOS: number;
+};
+
+async function comprobarSesion() {
+  const sesion = await getSession();
+
+  if (!sesion) {
+    redirect("/");
+  }
+
+  return sesion;
+}
+
+/**
+ * Obtener el récord completo de notas de un alumno.
+ * Se consulta V_NOTAALUMNO para conservar las relaciones
+ * y los criterios utilizados por el sistema PHP original.
+ */
+export async function getNotasByAlumno(
+  codAlumno: string
+): Promise<NotaAlumno[]> {
+  await connection();
+  await comprobarSesion();
+
+  try {
+    return await prisma.$queryRaw<NotaAlumno[]>`
+      SELECT
+        IDNOTA,
+        IDOPERA,
+        CODALUMNO,
+        ALUMNO,
+        A1,
+        A2,
+        A3,
+        CE1,
+        A4,
+        A5,
+        A6,
+        C2,
+        M2,
+        FINAL,
+        CE2,
+        LOGRO,
+        OBSERVACION,
+        NOM_DOCENTE,
+        DES_ASIGNATURA,
+        DES_MODULO,
+        DES_CARRERA,
+        DESHORARIO,
+        DESDE,
+        HASTA,
+        ANIO,
+        ESTADO
+      FROM dbo.V_NOTAALUMNO
+      WHERE CODALUMNO = ${codAlumno}
+      ORDER BY ORDEN
+    `;
+  } catch (error) {
+    console.error("Error al consultar el récord de notas:", error);
+    return [];
+  }
+}
+
+/**
+ * Listar las operaciones que tienen alumnos registrados
+ * en la vista oficial de notas.
+ */
+export async function getOperacionesNotas(
+  buscar = ""
+): Promise<OperacionNotas[]> {
+  await connection();
+  await comprobarSesion();
+
+  const filtro = buscar.trim().slice(0, 150);
+
+  try {
+    const operaciones = await prisma.$queryRaw<
+      (Omit<OperacionNotas, "CANTIDAD_ALUMNOS"> & {
+        CANTIDAD_ALUMNOS: bigint | number;
+      })[]
+    >`
+      SELECT
+        IDOPERA,
+        COD_DOCENTE,
+        NOM_DOCENTE,
+        DES_ASIGNATURA,
+        DES_MODULO,
+        DES_CARRERA,
+        DESHORARIO,
+        DESDE,
+        HASTA,
+        ANIO,
+        ESTADO,
+        COUNT(DISTINCT CODALUMNO) AS CANTIDAD_ALUMNOS
+      FROM dbo.V_NOTAALUMNO
+      WHERE
+        ${filtro} = ''
+        OR COALESCE(CAST(IDOPERA AS VARCHAR(20)), '') LIKE '%' + ${filtro} + '%'
+        OR COALESCE(NOM_DOCENTE, '') LIKE '%' + ${filtro} + '%'
+        OR COALESCE(DES_ASIGNATURA, '') LIKE '%' + ${filtro} + '%'
+        OR COALESCE(DES_MODULO, '') LIKE '%' + ${filtro} + '%'
+        OR COALESCE(DES_CARRERA, '') LIKE '%' + ${filtro} + '%'
+      GROUP BY
+        IDOPERA,
+        COD_DOCENTE,
+        NOM_DOCENTE,
+        DES_ASIGNATURA,
+        DES_MODULO,
+        DES_CARRERA,
+        DESHORARIO,
+        DESDE,
+        HASTA,
+        ANIO,
+        ESTADO
+      ORDER BY IDOPERA DESC
+    `;
+
+    return operaciones.map((operacion) => ({
+      ...operacion,
+      CANTIDAD_ALUMNOS: Number(operacion.CANTIDAD_ALUMNOS),
+    }));
+  } catch (error) {
+    console.error("Error al listar las operaciones de notas:", error);
+    return [];
+  }
+}
+
+/**
+ * Obtener el registro de calificaciones de una operación.
+ * Incluye el conteo de faltas según SP_LISTA_NOTA_ALUMNO.
+ */
+export async function getNotasByOperacion(
+  idOpera: string
+): Promise<NotaAlumno[]> {
+  await connection();
+  await comprobarSesion();
+
+  const codigo = idOpera.trim();
+
+  if (!codigo || codigo.length > 8) {
+    return [];
+  }
+
+  try {
+    return await prisma.$queryRaw<NotaAlumno[]>`
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY V.ALUMNO ASC) AS ORDENS,
+        V.IDNOTA,
+        V.IDOPERA,
+        V.CODALUMNO,
+        V.ALUMNO,
+        V.A1,
+        V.A2,
+        V.A3,
+        V.CE1,
+        V.A4,
+        V.A5,
+        V.A6,
+        V.C2,
+        V.M2,
+        V.FINAL,
+        V.CE2,
+        V.LOGRO,
+        V.OBSERVACION,
+        V.NOM_DOCENTE,
+        V.DES_ASIGNATURA,
+        V.DES_MODULO,
+        V.DES_CARRERA,
+        V.DESHORARIO,
+        V.DESDE,
+        V.HASTA,
+        V.ANIO,
+        V.ESTADO,
+        (
+          SELECT COUNT(*)
+          FROM dbo.MARCACION M
+          WHERE M.CODDOCENTE = V.COD_DOCENTE
+            AND M.CODALUMNO = V.CODALUMNO
+            AND M.IDOPERA = V.IDOPERA
+            AND M.HORAMARCA = 'F'
+        ) AS FALTA
+      FROM dbo.V_NOTAALUMNO V
+      WHERE V.IDOPERA = ${codigo}
+      ORDER BY V.ALUMNO ASC
+    `;
+  } catch (error) {
+    console.error("Error al consultar las notas de la operación:", error);
+    return [];
+  }
+}

@@ -52,9 +52,15 @@ export default function NuevoAlumnoPage() {
         {/* Bloque 1: Códigos de Control Nativos */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Código Alumno <span className="text-rose-500">*</span></label>
-            <input name="codAlumno" type="text" required placeholder="Ej: 20000007" maxLength={8}
-              className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-500 focus:outline-none" />
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Código de Alumno
+            </label>
+            <div className="w-full rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-sm font-semibold text-blue-800">
+              Se genera automáticamente al registrar
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              El sistema asignará el siguiente código disponible.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Código Local <span className="text-rose-500">*</span></label>

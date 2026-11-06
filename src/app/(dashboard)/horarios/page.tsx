@@ -8,6 +8,7 @@ type PageProps = {
     buscar?: string;
     resultado?: string;
     error?: string;
+    aviso?: string;
   }>;
 };
 
@@ -27,6 +28,7 @@ export default async function HorariosPage({ searchParams }: PageProps) {
       buscar={buscar}
       resultado={params.resultado}
       error={params.error}
+      aviso={params.aviso}
     />
   );
 }

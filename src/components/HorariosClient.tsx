@@ -15,6 +15,7 @@ type Props = {
   buscar: string;
   resultado?: string;
   error?: string;
+  aviso?: string;
 };
 
 const mensajesResultado: Record<string, string> = {
@@ -43,6 +44,7 @@ export default function HorariosClient({
   buscar,
   resultado,
   error,
+  aviso,
 }: Props) {
   const [filtro, setFiltro] = useState(buscar);
 
@@ -63,19 +65,24 @@ export default function HorariosClient({
 
       {resultado && mensajesResultado[resultado] && (
         <div
+          key={`resultado-${aviso ?? resultado}`}
           role="status"
           className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
         >
-          {mensajesResultado[resultado]}
+          {resultado === "anulado"
+            ? "Horario eliminado correctamente."
+            : mensajesResultado[resultado]}
         </div>
       )}
 
       {error && (
         <div
+          key={`error-${aviso ?? error}`}
           role="alert"
           className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
         >
-          {mensajesError[error] ?? "Se produjo un error al procesar la solicitud."}
+          {mensajesError[error] ??
+            "Se produjo un error al procesar la solicitud."}
         </div>
       )}
 

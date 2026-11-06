@@ -17,7 +17,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-slate-100 text-slate-900 antialiased">
-      <Sidebar nombreUsuario={session.nombre} />
+      <Sidebar nombreUsuario={session.nombre} nivelUsuario={session.nivel} />
 
       <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-5">
         <div className="mb-4 text-right text-sm text-slate-500">

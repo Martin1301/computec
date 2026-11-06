@@ -1,8 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
-import {
+import { useEffect, useState } from "react";import {
   actualizarProfesor,
   anularProfesor,
   crearProfesor,
@@ -38,6 +37,18 @@ export default function ProfesoresClient({
   error?: string;
 }) {
   const [editando, setEditando] = useState<string | null>(null);
+
+  useEffect(() => {
+  console.log("[PROFESORES] Componente montado");
+
+  return () => {
+    console.log("[PROFESORES] Componente desmontado");
+  };
+  }, []);
+
+  useEffect(() => {
+    console.log("[PROFESORES] Estado de edición:", editando);
+  }, [editando]);
 
   return (
     <div className="space-y-6">
@@ -254,9 +265,12 @@ export default function ProfesoresClient({
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() =>
-                              setEditando(profesor.COD_DOCENTE)
-                            }
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+
+                              setEditando(profesor.COD_DOCENTE);
+                            }}
                             className="rounded-md border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
                           >
                             Editar
